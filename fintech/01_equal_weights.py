@@ -91,3 +91,8 @@ df_top10['Number of Shares to buy'] = latest_price_float.apply(lambda price: mat
 print("This is how many shares you need to buy:")
 print("-----------------------")
 print(df_top10)
+
+# Export Top 10 Stocks to Excel
+output_file = "top_10_stocks.xlsx"
+df_top10.to_excel(output_file, index=False)
+print(f"Top 10 stocks exported to {output_file}")
