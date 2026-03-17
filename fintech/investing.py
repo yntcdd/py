@@ -50,7 +50,7 @@ df_equal["Latest Price"] = df_equal["Latest Price"].map('{:,.2f}'.format)
 
 df_top10 = df_equal.head(10).reset_index(drop=True)
 
-portfolio_size = int(input())
+portfolio_size = int(input("Input the size of your portfolio in USD: "))
 position_size = portfolio_size / len(df_top10.index)
 
 latest_price_float = df_top10["Latest Price"].str.replace(",", "").astype(float)
