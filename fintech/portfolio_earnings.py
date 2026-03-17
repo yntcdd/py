@@ -1,6 +1,7 @@
 import pandas as pd
 import yfinance as yf
 import time
+import threading
 
 # Load your portfolio CSV
 portfolio_df = pd.read_csv("my_portfolio.csv")
@@ -8,42 +9,68 @@ portfolio_df = pd.read_csv("my_portfolio.csv")
 tickers_list = portfolio_df["Ticker"].tolist()
 
 # Fetch latest prices and add directly to the same DataFrame
-start = time.perf_counter()
-tkrs = yf.Tickers(" ".join(tickers_list))
 
 latest_prices = []
-for symbol, tkr in tkrs.tickers.items():
-    try:
-        hist = tkr.history(period="1d")
-        if hist.empty:
+
+def fetch_latest_price(tickers):
+    start = time.perf_counter()
+    tkrs = yf.Tickers(" ".join(tickers))
+
+    for symbol, tkr in tkrs.tickers.items():
+        try:
+            hist = tkr.history(period="1d")
+            if hist.empty:
+                latest_prices.append(None)
+            else:
+                latest_prices.append(hist["Close"].iloc[-1])
+        except Exception:
             latest_prices.append(None)
-        else:
-            latest_prices.append(hist["Close"].iloc[-1])
-    except Exception:
-        latest_prices.append(None)
 
-# Assign Latest Price column
-portfolio_df["Latest Price"] = latest_prices
+    end = time.perf_counter()
+    print(f"Fetch completed in {end - start:.2f} seconds\n")
 
-end = time.perf_counter()
-print(f"Fetch completed in {end - start:.2f} seconds\n")
+def display_dataframe(df):
+    # Assign Latest Price column
+    df["Latest Price"] = latest_prices
 
-# Calculate Difference and Earnings
-portfolio_df["Difference"] = portfolio_df["Latest Price"] - portfolio_df["Purchase Price"]
-portfolio_df["Earnings"] = portfolio_df["Difference"] * portfolio_df["Number of Shares"]
+    # Calculate Difference and Earnings
+    df["Difference"] = df["Latest Price"] - df["Purchase Price"]
+    df["P/L(%)"] = df["Difference"] / df["Purchase Price"] * 100
+    df["P/L"] = df["Difference"] * df["Number of Shares"]
 
-# Sort by earnings descending
-portfolio_df = portfolio_df.sort_values(by="Earnings", ascending=False).reset_index(drop=True)
+    # Sort by P/L descending
+    df = df.sort_values(by="P/L", ascending=False).reset_index(drop=True)
 
-# Display the portfolio
-print("Portfolio Performance (sorted by earnings):")
-print(portfolio_df.to_string(formatters={
-    "Purchase Price": "{:,.2f}".format,
-    "Latest Price": "{:,.2f}".format,
-    "Difference": "{:,.2f}".format,
-    "Earnings": "{:,.2f}".format
-}))
+    # Display the portfolio
+    print("Portfolio Performance:\n")
+    print(df.to_string(formatters={
+        "Purchase Price": lambda x: f"${x:,.2f}" if x >= 0 else f"-${abs(x):,.2f}",
+        "Latest Price": lambda x: f"${x:,.2f}" if x >= 0 else f"-${abs(x):,.2f}",
+        "Difference": lambda x: f"${x:,.2f}" if x >= 0 else f"-${abs(x):,.2f}",
+        "P/L(%)": lambda x: f"{x:,.2f}%",
+        "P/L": lambda x: f"${x:,.2f}" if x >= 0 else f"-${abs(x):,.2f}"
+    }))
 
-# Total earnings
-total_earnings = portfolio_df["Earnings"].sum()
-print(f"\nTotal Earnings: ${total_earnings:,.2f}")
+    # Total Costs
+    total_costs = (df["Purchase Price"] * df["Number of Shares"]).sum()
+    print(f"\nTotal Investment: ${total_costs:,.2f}")
+
+    # Total current value
+    total_current_value = (df["Latest Price"] * df["Number of Shares"]).sum()
+    print(f"Total Current Value: ${total_current_value:,.2f}")
+
+    # Total percentage change
+    total_percentage_change = (total_current_value - total_costs) / total_costs * 100
+    print(f"Total Percentage Change: {total_percentage_change:,.2f}%")
+
+    # Total earnings
+    total_earnings = df["P/L"].sum() 
+    if total_earnings >= 0:
+        print(f"Total Profit: ${total_earnings:,.2f}")
+    else:
+        print(f"Total Loss: -${abs(total_earnings):,.2f}")
+
+# while True:
+#     fetch_latest_price(tickers_list)
+#     display_dataframe(portfolio_df)
+#     time.sleep(60)  # Update every 60 seconds
