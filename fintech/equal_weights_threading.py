@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 import math
+import threading
 import time
 
 # Load the Stocks List
@@ -26,29 +27,42 @@ def get_conversion_rate(from_currency, to_currency, cache):
 
 def fetch_market_cap(ticker_list):
     data = yf.download(ticker_list, period='1d', group_by='ticker', auto_adjust=False)
-    
+
     stocks_data = []
     conversion_cache = {}
-    
-    for ticker in ticker_list:
+    lock = threading.Lock()
+
+    def process_ticker(ticker):
         latest_price = data[ticker]['Close'].iloc[-1]
         info = yf.Ticker(ticker).info
-        
+
         currency = info.get("currency", "USD")
         rate = get_conversion_rate(currency, "USD", conversion_cache)
-        
+
         market_cap = info.get("marketCap")
         if market_cap is not None:
             market_cap *= rate
-        
-        stocks_data.append({
+
+        result = {
             "Ticker": ticker,
             "Market Cap": market_cap,
             "Latest Price": latest_price * rate,
-        })
-    
-    stocks_df = pd.DataFrame(stocks_data)
-    return stocks_df
+        }
+
+        with lock:
+            stocks_data.append(result)
+
+    threads = []
+
+    for ticker in ticker_list:
+        t = threading.Thread(target=process_ticker, args=(ticker,))
+        t.start()
+        threads.append(t)
+
+    for t in threads:
+        t.join()
+
+    return pd.DataFrame(stocks_data)
 
 start = time.perf_counter()
 

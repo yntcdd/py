@@ -6,7 +6,7 @@ import yfinance as yf
 import math
 from scipy import stats
 from statistics import mean
- 
+
 ## Load the Tickers
 tickers = pd.read_csv('top_50_stocks.csv')
 # print(tickers.head())
