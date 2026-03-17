@@ -23,9 +23,9 @@ def fetch_latest_price():
         for symbol, tkr in tkrs.tickers.items():
             try:
                 hist = tkr.history(period="1d")
-                temp_prices.append(hist["Close"].iloc[-1] if not hist.empty else None)
+                temp_prices.append(hist["Close"].iloc[-1] if not hist.empty else 0)
             except Exception:
-                temp_prices.append(None)
+                temp_prices.append(0)
 
         with lock:
             latest_prices = temp_prices.copy()
