@@ -1,7 +1,7 @@
 # Flet Stock App Live Data & Charts
 
 import flet as ft
-import flet.charts as fch
+import flet_charts as fch
 import requests
 from config import API_KEY
 
@@ -151,7 +151,7 @@ def main(page: ft.Page):
             # Make the Charts
             chart = fch.LineChart(
                 data_series = [
-                    ft.LineChartData(
+                    fch.LineChartData(
                         data_points = [
                             fch.LineChartDataPoint(i, closes[i])
                             for i in range(len(closes))
