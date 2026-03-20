@@ -1,7 +1,7 @@
 # Flet Stock App Live Data & Charts
 
 import flet as ft
-import flet_charts as fch
+# import flet_charts as fch
 import requests
 from config import API_KEY
 
@@ -14,6 +14,7 @@ def main(page: ft.Page):
     page.padding = 20
     page.window_width = 1000
     page.window_height = 700
+    page.scroll = ft.ScrollMode.AUTO
     
     # Read the Flet Documentation, it's really good!
     
@@ -149,11 +150,11 @@ def main(page: ft.Page):
             # Containers -> Columns and rows
             
             # Make the Charts
-            chart = fch.LineChart(
+            chart = ft.LineChart(
                 data_series = [
-                    fch.LineChartData(
+                    ft.LineChartData(
                         data_points = [
-                            fch.LineChartDataPoint(i, closes[i])
+                            ft.LineChartDataPoint(i, closes[i])
                             for i in range(len(closes))
                         ],
                         stroke_width = 3,
@@ -162,19 +163,19 @@ def main(page: ft.Page):
                     ),
                 ],
                 border = ft.Border(
-                    bottom = ft.BorderSide(4, ft.Colors.with_opacity(ft.Colors.ON_SURFACE, 0.5)),
-                    left = ft.BorderSide(4, ft.Colors.with_opacity(ft.Colors.ON_SURFACE, 0.5)),
-                    top = ft.BorderSide(4, ft.Colors.with_opacity(ft.Colors.ON_SURFACE, 0.5)),
-                    right = ft.BorderSide(4, ft.Colors.with_opacity(ft.Colors.ON_SURFACE, 0.5)),
+                    bottom = ft.BorderSide(4, ft.Colors.with_opacity(0.5, ft.Colors.ON_SURFACE)),
+                    left = ft.BorderSide(4, ft.Colors.with_opacity(0.5, ft.Colors.ON_SURFACE)),
+                    top = ft.BorderSide(4, ft.Colors.with_opacity(0.5, ft.Colors.ON_SURFACE)),
+                    right = ft.BorderSide(4, ft.Colors.with_opacity(0.5, ft.Colors.ON_SURFACE)),
                 ),
-                left_axis = fch.ChartAxis(
+                left_axis = ft.ChartAxis(
                     labels_size = 50,
                 ),
-                bottom_axis = fch.ChartAxis(
+                bottom_axis = ft.ChartAxis(
                     labels_size = 40,
                     labels_interval = max(1, len(closes) // 10),
                 ),
-                tooltip = ft.Colors.with_opacity(ft.Colors.BLUE_GREY, 0.8),
+                # tooltip = ft.Colors.with_opacity(0.8, ft.Colors.BLUE_GREY),
                 min_y = min(closes) * 0.95,
                 max_y = max(closes) * 1.05,
                 min_x = 0,
@@ -219,11 +220,11 @@ def main(page: ft.Page):
         ft.Column([
             ft.Container(
                 content = ft.Column([
-                    ft.Text("Gotcha Stock App on Code with Josh", size = 30, weight = ft.FontWeight.BOLD, color = ft.Colors.BLUE_800),
+                    ft.Text("Gotcha Stock App on Code with Michael", size = 30, weight = ft.FontWeight.BOLD, color = ft.Colors.BLUE_800),
                     ft.Text("Enter a stock symbol to view the chart.", size = 14, color = ft.Colors.GREY_600),
                 ], spacing = 5, horizontal_alignment = ft.CrossAxisAlignment.CENTER),
                 padding = ft.padding.only(bottom = 20),
-                alignment = ft.Alignment(0, 0)
+                alignment = ft.alignment.center
             ),
             # Search bar and date picker
             ft.Container(
@@ -261,7 +262,7 @@ def main(page: ft.Page):
                     ),
                 ], spacing = 10, alignment = ft.MainAxisAlignment.CENTER
                 ),
-                alignment = ft.Alignment(0, 0)
+                alignment = ft.alignment.center
             ),
             ft.Container(
                 ref = error_messages,
