@@ -64,6 +64,23 @@ def main(page: ft.Page):
     df_display = portfolio_df.copy()
     df_display["Current Price"] = [None] * len(df_display)
 
+
+    def toggle_theme(e):
+        if page.theme_mode == ft.ThemeMode.LIGHT:
+            page.theme_mode = ft.ThemeMode.DARK
+            theme_btn.icon = ft.Icons.DARK_MODE
+        else:
+            page.theme_mode = ft.ThemeMode.LIGHT
+            theme_btn.icon = ft.Icons.LIGHT_MODE
+        
+        table_ref.current.controls = build_table(sort_df(df_display))
+        page.update()
+
+    theme_btn = ft.IconButton(
+        icon=ft.Icons.LIGHT_MODE,
+        on_click=toggle_theme
+    )
+
     def get_label(name):
         if name == current_sort:
             return f"{name} {'↓' if sort_desc else '↑'}"
@@ -100,7 +117,7 @@ def main(page: ft.Page):
                     ], spacing=10),
                     padding=10,
                     border_radius=8,
-                    bgcolor=ft.Colors.GREY_100
+                    bgcolor=ft.Colors.GREY_100 if page.theme_mode == ft.ThemeMode.LIGHT else ft.Colors.GREY_900
                 )
             )
 
@@ -146,7 +163,7 @@ def main(page: ft.Page):
     def build_stat_card(title, value, color):
         return ft.Container(
             content=ft.Column([
-                ft.Text(title, size=12, color=ft.Colors.GREY_600),
+                ft.Text(title, size=12),
                 ft.Text(value, size=20, weight=ft.FontWeight.BOLD, color=color),
             ], spacing=5),
             padding=15,
@@ -159,11 +176,13 @@ def main(page: ft.Page):
     page.add(
         ft.Column([
             ft.Container(
-                content=ft.Column([
-                    ft.Text("Gotcha Portfolio Tracker", size=30, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_800),
-                    ft.Text("Live portfolio tracking with real-time updates", size=14, color=ft.Colors.GREY_600),
-                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                alignment=ft.alignment.center,
+                content=ft.Row([
+                    ft.Column([
+                        ft.Text("Gotcha Portfolio Tracker", size=30, weight=ft.FontWeight.BOLD),
+                        ft.Text("Live portfolio tracking with real-time updates", size=14),
+                    ], horizontal_alignment=ft.CrossAxisAlignment.START, expand=True),
+                    theme_btn
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                 padding=ft.padding.only(bottom=20)
             ),
 
