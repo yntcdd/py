@@ -36,7 +36,8 @@ def fetch_latest_price():
         with lock:
             latest_prices = temp_prices.copy()
             fetch_complete.set()
-
+            print(fetch_complete.is_set())
+        print("Fetched latest prices")
         time.sleep(30)
 
 threading.Thread(target=fetch_latest_price, daemon=True).start()
@@ -53,8 +54,10 @@ def main(page: ft.Page):
     page.title = "Gotcha Portfolio"
     page.theme_mode = ft.ThemeMode.LIGHT
     page.padding = 20
-    page.window_width = 1100
-    page.window_height = 750
+    page.window.width = 1000
+    page.window.height = 1000
+    page.window.left = 800
+    page.window.top = 200
     page.scroll = ft.ScrollMode.AUTO
 
     # Refs
@@ -89,7 +92,7 @@ def main(page: ft.Page):
         if name == current_sort:
             return f"{name} {'↓' if sort_desc else '↑'}"
         return name
-
+        
     def change_sort(column):
         global current_sort, sort_desc
 
@@ -133,6 +136,7 @@ def main(page: ft.Page):
             clock_ref.current.value = f"Portfolio Performance - {now.strftime('%Y-%m-%d %H:%M:%S')}"
 
             if fetch_complete.is_set():
+                print("Updating UI with latest prices...")
                 with lock:
                     df_display["Current Price"] = latest_prices.copy()
 
@@ -161,6 +165,7 @@ def main(page: ft.Page):
 
                 fetch_complete.clear()
 
+            print("UI Updated")
             page.update()
             time.sleep(1)
 
@@ -187,7 +192,7 @@ def main(page: ft.Page):
                     ], horizontal_alignment=ft.CrossAxisAlignment.START, expand=True),
                     theme_btn
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                padding=ft.padding.only(bottom=20)
+                padding=ft.Padding.only(bottom=20)
             ),
 
             ft.Text(ref=clock_ref, size=16, weight=ft.FontWeight.BOLD),
@@ -211,13 +216,16 @@ def main(page: ft.Page):
                     ft.Column(ref=table_ref, spacing=5)
                 ]),
                 padding=15,
-                border=ft.border.all(2, ft.Colors.GREY_300),
+                border=ft.Border.all(2, ft.Colors.GREY_300),
                 border_radius=10
             )
         ], spacing=15)
     )
 
-    threading.Thread(target=update_ui, daemon=True).start()
+    # threading.Thread(target=update_ui, daemon=True).start()
+    # update_ui()
+
 
 if __name__ == "__main__":
-    ft.app(target=main)
+    ft.run(main)
+    
