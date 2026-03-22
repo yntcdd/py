@@ -3,35 +3,25 @@ import flet as ft
 import flet_charts as fch
 import pandas as pd
 import yfinance as yf
-from datetime import datetime, date
+from datetime import datetime
 from theme_config import LIGHT, DARK
 
 portfolio_df = pd.read_csv("my_portfolio.csv")
 tickers_list = portfolio_df["Ticker"].tolist()
 
-latest_prices   = [None] * len(tickers_list)
-fetch_complete  = asyncio.Event()
+latest_prices  = [None] * len(tickers_list)
+fetch_complete = asyncio.Event()
 
-# Historical portfolio value from Feb 3 to today (fetched once at startup)
-portfolio_history: list[tuple[str, float]] = [] 
-history_ready   = asyncio.Event()
+portfolio_history: list[tuple[str, float]] = []
+history_ready  = asyncio.Event()
 
 current_sort = "P/L"
 sort_desc    = True
 
-CHART_COLORS = [
-    ft.Colors.BLUE_400, ft.Colors.GREEN_400, ft.Colors.ORANGE_400,
-    ft.Colors.PURPLE_400, ft.Colors.CYAN_400, ft.Colors.PINK_400,
-    ft.Colors.TEAL_400,
-]
-
 def sort_df(df):
     return df.sort_values(by=current_sort, ascending=not sort_desc).reset_index(drop=True)
 
-# Background fetchers 
-
 async def fetch_latest_price():
-    """Live price refresh every 30 s."""
     global latest_prices
     while True:
         try:
@@ -52,12 +42,10 @@ async def fetch_latest_price():
             print(f"Live fetch error: {e}")
         await asyncio.sleep(30)
 
-
 async def fetch_portfolio_history():
     global portfolio_history
     try:
         start = "2025-02-03"
-
         def _fetch():
             rows = {}
             for _, holding in portfolio_df.iterrows():
@@ -71,18 +59,13 @@ async def fetch_portfolio_history():
                     day = ts.strftime("%Y-%m-%d")
                     rows.setdefault(day, 0.0)
                     rows[day] += row["Close"] * shares
-            # Sort chronologically
             return sorted(rows.items())
-
         data = await asyncio.get_event_loop().run_in_executor(None, _fetch)
         portfolio_history = data
         history_ready.set()
         print(f"History fetched: {len(data)} trading days")
     except Exception as e:
         print(f"History fetch error: {e}")
-
-
-# Helpers 
 
 def fmt_money(x):
     if x is None:
@@ -101,8 +84,6 @@ RANGE_MAP = {
     "5 years": ("5y",  "1mo"),
 }
 
-# Main 
-
 async def main(page: ft.Page):
     page.title       = "Gotcha Portfolio"
     page.theme_mode  = ft.ThemeMode.LIGHT
@@ -112,7 +93,6 @@ async def main(page: ft.Page):
     page.window.left   = 100
     page.window.top    = 100
 
-    # Refs
     clock_ref       = ft.Ref[ft.Text]()
     table_ref       = ft.Ref[ft.Column]()
     totals_ref      = ft.Ref[ft.Container]()
@@ -127,10 +107,9 @@ async def main(page: ft.Page):
     df_display = portfolio_df.copy()
     df_display["Current Price"] = [None] * len(df_display)
 
-    # Theme 
     def get_theme():
         return DARK if page.theme_mode == ft.ThemeMode.DARK else LIGHT
-
+    
     def toggle_theme(e):
         if page.theme_mode == ft.ThemeMode.LIGHT:
             page.theme_mode = ft.ThemeMode.DARK
@@ -138,13 +117,18 @@ async def main(page: ft.Page):
         else:
             page.theme_mode = ft.ThemeMode.LIGHT
             theme_btn.icon  = ft.Icons.LIGHT_MODE
+
         if table_ref.current:
             table_ref.current.controls = build_table(sort_df(df_display))
+
+        # Rebuild allocation chart so legend text picks up new theme colors
+        if alloc_chart_ref.current:
+            alloc_chart_ref.current.content = build_alloc_chart(df_display)
+
         page.update()
 
     theme_btn = ft.IconButton(icon=ft.Icons.LIGHT_MODE, on_click=toggle_theme)
 
-    # Table 
     def get_label(name):
         if name == current_sort:
             return f"{name} {'↓' if sort_desc else '↑'}"
@@ -195,50 +179,74 @@ async def main(page: ft.Page):
             expand=True,
         )
 
-    # Portfolio performance chart 
     def build_perf_chart():
         if not portfolio_history:
             return ft.Container(
-                content=ft.Text("Fetching history from Feb 3…",
+                content=ft.Text("Fetching history from Feb 3...",
                                 italic=True, color=ft.Colors.GREY_500, size=12),
-                height=200, alignment=ft.alignment.center,
+                height=220, alignment=ft.alignment.center,
             )
 
         values = [v for _, v in portfolio_history]
         dates  = [d for d, _ in portfolio_history]
         theme  = get_theme()
+        n      = len(values)
 
-        is_up       = values[-1] >= values[0]
-        line_color  = theme["green"] if is_up else theme["red"]
-        fill_color  = ft.Colors.with_opacity(0.12, line_color)
+        is_up      = values[-1] >= values[0]
+        line_color = theme["green"] if is_up else theme["red"]
+        fill_color = ft.Colors.with_opacity(0.10, line_color)
 
-        step = max(1, len(dates) // 6)
+        y_min   = min(values)
+        y_max   = max(values)
+        y_range = y_max - y_min
+        y_pad   = y_range * 0.05
+
+        chart_min_y = y_min - y_pad
+        chart_max_y = y_max + y_pad
+        y_mid       = (y_min + y_max) / 2
+
+        left_labels = [
+            fch.ChartAxisLabel(
+                value=chart_min_y,
+                label=ft.Container(
+                    ft.Text(f"${y_min/1000:.1f}k", size=9, color=theme["subtext"]),
+                    padding=ft.Padding.only(right=4),
+                ),
+            ),
+            fch.ChartAxisLabel(
+                value=y_mid,
+                label=ft.Container(
+                    ft.Text(f"${y_mid/1000:.1f}k", size=9, color=theme["subtext"]),
+                    padding=ft.Padding.only(right=4),
+                ),
+            ),
+            fch.ChartAxisLabel(
+                value=chart_max_y,
+                label=ft.Container(
+                    ft.Text(f"${y_max/1000:.1f}k", size=9, color=theme["subtext"]),
+                    padding=ft.Padding.only(right=4),
+                ),
+            ),
+        ]
+
+        x_indices     = [0, round((n - 1) / 2), n - 1]
         bottom_labels = [
             fch.ChartAxisLabel(
-                value=float(i),
+                value=float(idx),
                 label=ft.Container(
-                    ft.Text(dates[i][5:], size=9, color=theme["subtext"]),
+                    ft.Text(dates[idx][5:], size=9, color=theme["subtext"]),
                     padding=ft.Padding.only(top=4),
                 ),
             )
-            for i in range(0, len(dates), step)
+            for idx in x_indices
         ]
-
-        # Build tooltip content per point: show date + value
-        def make_tooltip(i):
-            return ft.Column([
-                ft.Text(dates[i], size=11, weight=ft.FontWeight.BOLD,
-                        color=ft.Colors.WHITE),
-                ft.Text(f"${values[i]:,.0f}", size=13, weight=ft.FontWeight.BOLD,
-                        color=ft.Colors.WHITE),
-            ], spacing=2, tight=True)
 
         data_points = [
             fch.LineChartDataPoint(
                 float(i), values[i],
-                tooltip=f"{dates[i]}\n${values[i]:,.0f}",
+                tooltip=f"{dates[i]}  ${values[i]:,.0f}",
             )
-            for i in range(len(values))
+            for i in range(n)
         ]
 
         chart = fch.LineChart(
@@ -253,32 +261,27 @@ async def main(page: ft.Page):
                 ),
             ],
             left_axis=fch.ChartAxis(
-                label_size=60,
-                labels=[
-                    fch.ChartAxisLabel(
-                        value=float(v),
-                        label=ft.Text(f"${v/1000:.0f}k", size=9, color=theme["subtext"]),
-                    )
-                    for v in [
-                        min(values) + i * (max(values) - min(values)) / 4
-                        for i in range(5)
-                    ]
-                ],
+                labels=left_labels,
+                label_size=62,
+                show_labels=True,
             ),
-            bottom_axis=fch.ChartAxis(labels=bottom_labels, label_size=28),
-            min_y=min(values) * 0.98,
-            max_y=max(values) * 1.02,
+            bottom_axis=fch.ChartAxis(
+                labels=bottom_labels,
+                label_size=30,
+                show_labels=True,
+            ),
+            min_y=chart_min_y,
+            max_y=chart_max_y,
             min_x=0.0,
-            max_x=float(len(values) - 1),
+            max_x=float(n - 1),
             expand=True,
         )
-        return ft.Container(content=chart, height=200, expand=True)
+        return ft.Container(content=chart, height=220, expand=True)
 
-    # Allocation pie chart 
     def build_alloc_chart(df):
         if df["Current Price"].isna().any():
             return ft.Container(
-                content=ft.Text("Waiting for price data…",
+                content=ft.Text("Waiting for price data...",
                                 italic=True, color=ft.Colors.GREY_500, size=12),
                 alignment=ft.alignment.center,
             )
@@ -305,20 +308,19 @@ async def main(page: ft.Page):
             sections.append(fch.PieChartSection(
                 value=pct,
                 title=f"{pct:.0f}%" if pct >= 6 else "",
-                title_style=ft.TextStyle(size=10, weight=ft.FontWeight.BOLD,
-                                         color=ft.Colors.WHITE),
+                title_style=ft.TextStyle(size=10, weight=ft.FontWeight.BOLD, color=theme["text"]),
                 color=color,
                 radius=54,
                 border_side=ft.BorderSide(2, ft.Colors.with_opacity(0.3, ft.Colors.WHITE)),
             ))
             legend_items.append(
                 ft.Row([
-                    ft.Container(width=11, height=11, bgcolor=color,
-                                 border_radius=3),
+                    ft.Container(width=11, height=11, bgcolor=color, border_radius=3),
                     ft.Column([
                         ft.Text(row["Ticker"], size=12, weight=ft.FontWeight.W_600,
-                                color=theme["text"]),
-                        ft.Text(fmt_money(val), size=10, color=theme["subtext"]),
+                                color=theme["text"]),          # uses live theme
+                        ft.Text(fmt_money(val), size=10,
+                                color=theme["subtext"]),       # uses live theme
                     ], spacing=0, tight=True, expand=True),
                     ft.Text(f"{pct:.1f}%", size=11, weight=ft.FontWeight.BOLD,
                             color=color),
@@ -326,26 +328,25 @@ async def main(page: ft.Page):
             )
 
         if not rest.empty:
-            other_pct = rest["Pct"].sum()
-            other_val = rest["Value"].sum()
+            other_pct   = rest["Pct"].sum()
+            other_val   = rest["Value"].sum()
             other_color = theme["chart_other"]
             sections.append(fch.PieChartSection(
                 value=other_pct,
                 title=f"{other_pct:.0f}%" if other_pct >= 6 else "",
-                title_style=ft.TextStyle(size=10, weight=ft.FontWeight.BOLD,
-                                         color=ft.Colors.WHITE),
+                title_style=ft.TextStyle(size=10, weight=ft.FontWeight.BOLD, color=theme["text"]),
                 color=other_color,
                 radius=54,
                 border_side=ft.BorderSide(2, ft.Colors.with_opacity(0.3, ft.Colors.WHITE)),
             ))
             legend_items.append(
                 ft.Row([
-                    ft.Container(width=11, height=11, bgcolor=other_color,
-                                 border_radius=3),
+                    ft.Container(width=11, height=11, bgcolor=other_color, border_radius=3),
                     ft.Column([
                         ft.Text("Other", size=12, weight=ft.FontWeight.W_600,
-                                color=theme["text"]),
-                        ft.Text(fmt_money(other_val), size=10, color=theme["subtext"]),
+                                color=theme["text"]),          # uses live theme
+                        ft.Text(fmt_money(other_val), size=10,
+                                color=theme["subtext"]),       # uses live theme
                     ], spacing=0, tight=True, expand=True),
                     ft.Text(f"{other_pct:.1f}%", size=11, weight=ft.FontWeight.BOLD,
                             color=other_color),
@@ -358,7 +359,7 @@ async def main(page: ft.Page):
                 sections_space=3,
                 center_space_radius=34,
                 width=160,
-                height=200,
+                height=220,
             ),
             ft.Column(
                 legend_items,
@@ -369,7 +370,6 @@ async def main(page: ft.Page):
             ),
         ], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER)
 
-    # Search tab: stock chart 
     async def fetch_stock_data(e):
         symbol     = stock_symbol.current.value.upper().strip()
         time_range = time_range_dd.current.value or "30 days"
@@ -377,7 +377,7 @@ async def main(page: ft.Page):
 
         if not symbol:
             error_messages.current.content = ft.Text(
-                "Please enter a stock symbol.", color=ft.Colors.RED, size=14)
+                "Please enter a stock symbol.", color=get_theme()["red"], size=14)
             error_messages.current.visible  = True
             price_info.current.visible      = False
             chart_container.current.visible = False
@@ -387,7 +387,7 @@ async def main(page: ft.Page):
         error_messages.current.visible  = False
         price_info.current.visible      = False
         chart_container.current.content = ft.Text(
-            "Loading stock data…", size=16, color=ft.Colors.BLUE, italic=True)
+            "Loading stock data...", size=16, color=get_theme()["accent"], italic=True)
         chart_container.current.visible = True
         page.update()
 
@@ -407,7 +407,7 @@ async def main(page: ft.Page):
             def price_card(label, value, txt_color, bg_color):
                 return ft.Container(
                     content=ft.Column([
-                        ft.Text(label, size=12, color=ft.Colors.GREY_600),
+                        ft.Text(label, size=12, color=get_theme()["bg"]),
                         ft.Text(f"${value:.2f}", size=18,
                                 weight=ft.FontWeight.BOLD, color=txt_color),
                     ], spacing=4),
@@ -417,15 +417,15 @@ async def main(page: ft.Page):
             price_info.current.content = ft.Column([
                 ft.Row([
                     ft.Text(symbol, size=22, weight=ft.FontWeight.BOLD,
-                            color=ft.Colors.BLUE_700),
-                    ft.Text(latest_date, size=13, color=ft.Colors.GREY_600),
+                            color=get_theme()["accent"]),
+                    ft.Text(latest_date, size=13, color=get_theme()["subtext"]),
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                 ft.Divider(height=1),
                 ft.Row([
-                    price_card("Open",  hist["Open"].iloc[-1],  ft.Colors.BLUE_900,   ft.Colors.BLUE_50),
-                    price_card("High",  hist["High"].iloc[-1],  ft.Colors.GREEN_900,  ft.Colors.GREEN_50),
-                    price_card("Low",   hist["Low"].iloc[-1],   ft.Colors.RED_900,    ft.Colors.RED_50),
-                    price_card("Close", closes[-1],             ft.Colors.PURPLE_900, ft.Colors.PURPLE_50),
+                    price_card("Open",  hist["Open"].iloc[-1],  get_theme()["card"], get_theme()["accent"]),
+                    price_card("High",  hist["High"].iloc[-1],  get_theme()["card"], get_theme()["green"]),
+                    price_card("Low",   hist["Low"].iloc[-1],   get_theme()["card"], get_theme()["red"]),
+                    price_card("Close", closes[-1],             get_theme()["card"], get_theme()["purple"]),
                 ], spacing=8),
             ], spacing=8)
             price_info.current.visible = True
@@ -441,7 +441,8 @@ async def main(page: ft.Page):
 
             chart = fch.LineChart(
                 data_series=[fch.LineChartData(
-                    points=[fch.LineChartDataPoint(float(i), closes[i]) for i in range(len(closes))],
+                    points=[fch.LineChartDataPoint(float(i), closes[i])
+                            for i in range(len(closes))],
                     stroke_width=2.5,
                     color=ft.Colors.ORANGE,
                     below_line_bgcolor=ft.Colors.with_opacity(0.08, ft.Colors.ORANGE),
@@ -459,7 +460,7 @@ async def main(page: ft.Page):
 
             chart_container.current.content = ft.Container(
                 content=ft.Column([
-                    ft.Text(f"Closing Price — {time_range} ({symbol})",
+                    ft.Text(f"Closing Price - {time_range} ({symbol})",
                             size=15, weight=ft.FontWeight.BOLD),
                     chart,
                 ], spacing=10),
@@ -477,15 +478,10 @@ async def main(page: ft.Page):
 
         page.update()
 
-    # Tab builders 
     def build_portfolio_tab():
         return ft.Column([
             ft.Text(ref=clock_ref, size=13, color=ft.Colors.GREY_600),
-
-            # Stat cards
             ft.Container(ref=totals_ref, padding=ft.Padding.symmetric(vertical=4)),
-
-            # Charts row
             ft.Row([
                 ft.Container(
                     content=ft.Column([
@@ -493,9 +489,9 @@ async def main(page: ft.Page):
                                 size=13, weight=ft.FontWeight.BOLD),
                         ft.Container(
                             ref=perf_chart_ref,
-                            content=ft.Text("Fetching history…", italic=True,
+                            content=ft.Text("Fetching history...", italic=True,
                                             size=12, color=ft.Colors.GREY_500),
-                            height=170,
+                            height=220,
                         ),
                     ], spacing=8),
                     padding=14,
@@ -509,9 +505,9 @@ async def main(page: ft.Page):
                                 size=13, weight=ft.FontWeight.BOLD),
                         ft.Container(
                             ref=alloc_chart_ref,
-                            content=ft.Text("Waiting for prices…", italic=True,
+                            content=ft.Text("Waiting for prices...", italic=True,
                                             size=12, color=ft.Colors.GREY_500),
-                            height=170,
+                            height=220,
                         ),
                     ], spacing=8),
                     padding=14,
@@ -520,8 +516,6 @@ async def main(page: ft.Page):
                     expand=2,
                 ),
             ], spacing=12),
-
-            # Holdings table
             ft.Container(
                 content=ft.Column([
                     ft.Row([
@@ -554,7 +548,7 @@ async def main(page: ft.Page):
                 ft.TextField(
                     ref=stock_symbol,
                     label="Stock Symbol",
-                    hint_text="AAPL, GOOGL, MSFT…",
+                    hint_text="AAPL, GOOGL, MSFT...",
                     expand=True,
                     on_submit=fetch_stock_data,
                 ),
@@ -567,11 +561,8 @@ async def main(page: ft.Page):
                 ),
                 ft.FilledButton("Search", icon=ft.Icons.SEARCH, on_click=fetch_stock_data),
             ], spacing=8),
-            ft.Container(ref=error_messages,
-                         content=ft.Text("", color=ft.Colors.RED, size=13),
-                         visible=False),
-            ft.Container(ref=price_info,
-                         padding=ft.Padding.symmetric(vertical=6), visible=False),
+            ft.Container(ref=error_messages, content=ft.Text("", color=ft.Colors.RED, size=13), visible=False),
+            ft.Container(ref=price_info, padding=ft.Padding.symmetric(vertical=6), visible=False),
             ft.Container(ref=chart_container, padding=0, visible=False),
         ],
         spacing=10,
@@ -579,11 +570,9 @@ async def main(page: ft.Page):
         expand=True,
         )
 
-    # Tab bar 
-    tab_content  = ft.Ref[ft.Container]()
-    TABS         = ["📊 Portfolio", "🔍 Search"]
-    active_tab   = {"index": 0}
-    tab_buttons  = []
+    tab_content = ft.Ref[ft.Container]()
+    active_tab  = {"index": 0}
+    tab_buttons = []
 
     def make_tab_btn(label, index):
         def on_click(e):
@@ -591,6 +580,12 @@ async def main(page: ft.Page):
             tab_content.current.content = (
                 build_portfolio_tab() if index == 0 else build_search_tab()
             )
+            if index == 0:
+                if perf_chart_ref.current and portfolio_history:
+                    perf_chart_ref.current.content = build_perf_chart()
+                if alloc_chart_ref.current and not df_display["Current Price"].isna().any():
+                    alloc_chart_ref.current.content = build_alloc_chart(df_display)
+
             for i, btn in enumerate(tab_buttons):
                 btn.style = ft.ButtonStyle(
                     bgcolor=ft.Colors.BLUE_700 if i == index else ft.Colors.TRANSPARENT,
@@ -615,13 +610,12 @@ async def main(page: ft.Page):
         tab_buttons.append(btn)
         return btn
 
-    # Root layout 
     page.add(
         ft.Column([
             ft.Container(
                 content=ft.Row([
                     ft.Text("Gotcha Portfolio", size=22, weight=ft.FontWeight.BOLD),
-                    ft.Row([make_tab_btn(t, i) for i, t in enumerate(TABS)], spacing=8),
+                    ft.Row([make_tab_btn(t, i) for i, t in enumerate(["Portfolio", "Search"])],spacing=8),
                     theme_btn,
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                 padding=ft.Padding.only(left=20, right=20, top=12, bottom=12),
@@ -636,24 +630,21 @@ async def main(page: ft.Page):
         ], expand=True, spacing=0)
     )
 
-    # Start background tasks 
     asyncio.create_task(fetch_latest_price())
     asyncio.create_task(fetch_portfolio_history())
 
-    # Main tick loop 
     while True:
         await asyncio.sleep(1)
 
         now = datetime.now()
         if clock_ref.current:
             clock_ref.current.value = (
-                f"Portfolio Performance — {now.strftime('%Y-%m-%d %H:%M:%S')}"
+                f"Portfolio Performance - {now.strftime('%Y-%m-%d %H:%M:%S')}"
             )
 
-        # Update performance chart as soon as history arrives
         if history_ready.is_set() and perf_chart_ref.current:
             perf_chart_ref.current.content = build_perf_chart()
-            history_ready.clear()   # only rebuild once per fetch
+            history_ready.clear()
 
         if fetch_complete.is_set():
             df_display["Current Price"] = latest_prices.copy()
@@ -685,7 +676,6 @@ async def main(page: ft.Page):
             fetch_complete.clear()
 
         page.update()
-
 
 if __name__ == "__main__":
     ft.run(main)
