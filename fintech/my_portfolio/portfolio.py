@@ -4,6 +4,7 @@ import yfinance as yf
 import threading
 import time
 from datetime import datetime
+from theme_config import LIGHT, DARK
 
 portfolio_df = pd.read_csv("my_portfolio.csv")
 tickers_list = portfolio_df["Ticker"].tolist()
@@ -65,6 +66,9 @@ def main(page: ft.Page):
     df_display["Current Price"] = [None] * len(df_display)
 
 
+    def get_theme():
+        return DARK if page.theme_mode == ft.ThemeMode.DARK else LIGHT
+    
     def toggle_theme(e):
         if page.theme_mode == ft.ThemeMode.LIGHT:
             page.theme_mode = ft.ThemeMode.DARK
@@ -103,21 +107,21 @@ def main(page: ft.Page):
 
         for _, row in df.iterrows():
             pl = row["P/L"]
-            color = ft.Colors.GREEN_700 if pl >= 0 else ft.Colors.RED_700
+            color = get_theme()["green"] if pl >= 0 else get_theme()["red"]
 
             rows.append(
                 ft.Container(
                     content=ft.Row([
                         ft.Text(row["Ticker"], width=80),
-                        ft.Text(fmt_money(row["Purchase Price"]), width=120, color=ft.Colors.ORANGE_800, weight=ft.FontWeight.BOLD),
-                        ft.Text(fmt_money(row["Current Price"]), width=120, color=ft.Colors.PURPLE_800, weight=ft.FontWeight.BOLD),
+                        ft.Text(fmt_money(row["Purchase Price"]), width=120, color=get_theme()["orange"], weight=ft.FontWeight.BOLD),
+                        ft.Text(fmt_money(row["Current Price"]), width=120, color=get_theme()["purple"], weight=ft.FontWeight.BOLD),
                         ft.Text(fmt_money(row["Difference"]), width=120, color=color),
                         ft.Text(fmt_pct(row["P/L(%)"]), width=120, color=color),
                         ft.Text(fmt_money(pl), width=120, color=color),
                     ], spacing=10),
                     padding=10,
                     border_radius=8,
-                    bgcolor=ft.Colors.GREY_100 if page.theme_mode == ft.ThemeMode.LIGHT else ft.Colors.GREY_900
+                    bgcolor=get_theme()["card"]
                 )
             )
 
@@ -147,12 +151,12 @@ def main(page: ft.Page):
                     total_pct = (total_val - total_cost) / total_cost * 100
 
                     totals_ref.current.content = ft.Row([
-                        build_stat_card("Investment", fmt_money(total_cost), ft.Colors.BLUE),
-                        build_stat_card("Value", fmt_money(total_val), ft.Colors.PURPLE),
+                        build_stat_card("Investment", fmt_money(total_cost), get_theme()["accent"]),
+                        build_stat_card("Value", fmt_money(total_val), get_theme()["purple"]),
                         build_stat_card("Change", fmt_pct(total_pct),
-                                        ft.Colors.GREEN if total_pct >= 0 else ft.Colors.RED),
+                                        get_theme()["green"] if total_pct >= 0 else get_theme()["red"]),
                         build_stat_card("P/L", fmt_money(total_pl),
-                                        ft.Colors.GREEN if total_pl >= 0 else ft.Colors.RED),
+                                        get_theme()["green"] if total_pl >= 0 else get_theme()["red"]),
                     ], spacing=10)
 
                 fetch_complete.clear()

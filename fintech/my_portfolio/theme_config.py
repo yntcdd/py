@@ -5,7 +5,9 @@ LIGHT = {
     "subtext": "#555555",
     "green": "#2e7d32",
     "red": "#c62828",
-    "accent": "#1565c0"
+    "accent": "#1565c0",
+    "purple": "#6a1b9a",
+    "orange": "#ef6c00"
 }
 
 DARK = {
@@ -15,5 +17,7 @@ DARK = {
     "subtext": "#aaaaaa",
     "green": "#66bb6a",
     "red": "#ef5350",
-    "accent": "#90caf9"
+    "accent": "#90caf9",
+    "purple": "#ab47bc",
+    "orange": "#ffa726" 
 }
